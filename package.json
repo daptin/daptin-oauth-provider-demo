@@ -4,6 +4,18 @@
   "private": true,
   "description": "Demo showing Daptin acting as an OAuth 2.0 / OpenID Connect provider, including a self-client flow.",
   "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/daptin/daptin-oauth-provider-demo.git"
+  },
+  "keywords": [
+    "daptin",
+    "oauth2",
+    "openid-connect",
+    "pkce",
+    "docker-compose",
+    "oauth-provider"
+  ],
   "scripts": {
     "setup": "node scripts/setup.js",
     "start": "node server.js",

@@ -1,0 +1,31 @@
+services:
+  daptin:
+    image: ${DAPTIN_IMAGE:-daptin/daptin:v0.9.82}
+    ports:
+      - "6336:8080"
+      - "6443:6443"
+    environment:
+      DAPTIN_PORT: ":8080"
+      DAPTIN_DB_CONNECTION_STRING: /data/daptin.db
+    volumes:
+      - daptin-data:/data
+
+  demo:
+    build: .
+    depends_on:
+      - daptin
+    ports:
+      - "7777:7777"
+    environment:
+      LISTEN_HOST: 0.0.0.0
+      DAPTIN_BASE_URL: http://localhost:6336
+      DAPTIN_BROWSER_URL: http://localhost:6336
+      DAPTIN_API_URL: http://daptin:8080
+      DAPTIN_INTERNAL_URL: http://daptin:8080
+      DEMO_BASE_URL: http://localhost:7777
+      DEMO_ADMIN_EMAIL: demo-admin@example.com
+      DEMO_ADMIN_PASSWORD: demo-admin-password
+    command: sh -c "node scripts/setup.js && node server.js"
+
+volumes:
+  daptin-data:

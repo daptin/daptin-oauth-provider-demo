@@ -35,6 +35,8 @@ function env(name, fallback = "") {
 
 const config = {
   daptinBaseUrl: env("DAPTIN_BASE_URL", "http://localhost:6336").replace(/\/$/, ""),
+  daptinApiUrl: env("DAPTIN_API_URL", env("DAPTIN_BASE_URL", "http://localhost:6336")).replace(/\/$/, ""),
+  daptinBrowserUrl: env("DAPTIN_BROWSER_URL", env("DAPTIN_BASE_URL", "http://localhost:6336")).replace(/\/$/, ""),
   demoBaseUrl: env("DEMO_BASE_URL", "http://localhost:7777").replace(/\/$/, ""),
   adminToken: env("DAPTIN_ADMIN_TOKEN"),
   authenticatorName: env("AUTHENTICATOR_NAME"),
@@ -45,7 +47,7 @@ const config = {
 
 const listenUrl = new URL(config.demoBaseUrl);
 const port = Number(listenUrl.port || (listenUrl.protocol === "https:" ? 443 : 80));
-const host = listenUrl.hostname || "localhost";
+const host = env("LISTEN_HOST", listenUrl.hostname || "localhost");
 
 function base64Url(input) {
   return Buffer.from(input)
@@ -198,14 +200,15 @@ function renderHome(response) {
     </div>
     <div class="panel">
       <h2>Current configuration</h2>
-      <p>Daptin: <code>${htmlEscape(config.daptinBaseUrl)}</code></p>
+      <p>Daptin browser URL: <code>${htmlEscape(config.daptinBrowserUrl)}</code></p>
+      <p>Daptin API URL: <code>${htmlEscape(config.daptinApiUrl)}</code></p>
       <p>Demo: <code>${htmlEscape(config.demoBaseUrl)}</code></p>
       <p>Authenticator: <code>${htmlEscape(config.authenticatorName || "(not configured)")}</code></p>
       <p>Client ID: <code>${htmlEscape(config.clientId || "(not configured)")}</code></p>
     </div>
     <div class="panel">
       <h2>Before running</h2>
-      <p>Sign in to Daptin in the same browser at <code>${htmlEscape(config.daptinBaseUrl)}</code>. The provider authorization page uses the browser's Daptin session.</p>
+      <p>Sign in to Daptin in the same browser at <code>${htmlEscape(config.daptinBrowserUrl)}</code>. The provider authorization page uses the browser's Daptin session.</p>
     </div>
   `);
 }
@@ -214,7 +217,7 @@ async function beginPlainClient(request, response) {
   requireConfig(["clientId", "clientSecret"]);
   const state = randomToken();
   const verifier = randomToken(48);
-  const authorizeUrl = new URL(`${config.daptinBaseUrl}/oauth/authorize`);
+  const authorizeUrl = new URL(`${config.daptinBrowserUrl}/oauth/authorize`);
   authorizeUrl.searchParams.set("response_type", "code");
   authorizeUrl.searchParams.set("client_id", config.clientId);
   authorizeUrl.searchParams.set("redirect_uri", `${config.demoBaseUrl}/plain-client/callback`);
@@ -255,7 +258,7 @@ async function finishPlainClient(request, response, url) {
     code_verifier: cookies.plain_verifier,
   });
   const credentials = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64");
-  const token = await fetchJson(`${config.daptinBaseUrl}/oauth/token`, {
+  const token = await fetchJson(`${config.daptinApiUrl}/oauth/token`, {
     method: "POST",
     headers: {
       authorization: `Basic ${credentials}`,
@@ -264,7 +267,7 @@ async function finishPlainClient(request, response, url) {
     },
     body,
   });
-  const userinfo = await fetchJson(`${config.daptinBaseUrl}/oauth/userinfo`, {
+  const userinfo = await fetchJson(`${config.daptinApiUrl}/oauth/userinfo`, {
     headers: {
       authorization: `Bearer ${token.access_token}`,
       accept: "application/json",
@@ -283,7 +286,7 @@ async function finishPlainClient(request, response, url) {
 
 async function beginDaptinConsumer(request, response) {
   requireConfig(["adminToken", "oauthConnectId"]);
-  const result = await fetchJson(`${config.daptinBaseUrl}/action/oauth_connect/oauth_login_begin`, {
+  const result = await fetchJson(`${config.daptinApiUrl}/action/oauth_connect/oauth_login_begin`, {
     method: "POST",
     headers: {
       authorization: `Bearer ${config.adminToken}`,
@@ -325,7 +328,7 @@ async function finishDaptinConsumer(request, response, url) {
   if (cookies.daptin_consumer_state && cookies.daptin_consumer_state !== state) {
     throw new Error("Daptin consumer state mismatch.");
   }
-  const result = await fetchJson(`${config.daptinBaseUrl}/action/oauth_token/oauth.login.response`, {
+  const result = await fetchJson(`${config.daptinApiUrl}/action/oauth_token/oauth.login.response`, {
     method: "POST",
     headers: {
       authorization: `Bearer ${config.adminToken}`,

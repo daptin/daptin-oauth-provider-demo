@@ -40,6 +40,14 @@ function randomSuffix() {
   return crypto.randomBytes(4).toString("hex");
 }
 
+function normalizeUrl(value) {
+  return value.replace(/\/$/, "");
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function actionPayload(attributes) {
   return { attributes };
 }
@@ -205,18 +213,18 @@ async function registerProviderApp(baseUrl, token, authenticatorName, demoBaseUr
   };
 }
 
-async function createOauthConnect(baseUrl, token, authenticatorName, demoBaseUrl, clientId, clientSecret) {
+async function createOauthConnect(apiUrl, browserUrl, internalUrl, token, authenticatorName, demoBaseUrl, clientId, clientSecret) {
   console.log("Creating Daptin oauth_connect configuration for self-login.");
-  const response = await postEntity(`${baseUrl}/api/oauth_connect`, {
+  const response = await postEntity(`${apiUrl}/api/oauth_connect`, {
     name: authenticatorName,
     client_id: clientId,
     client_secret: clientSecret,
     scope: "openid,profile,email",
     response_type: "code",
     redirect_uri: `${demoBaseUrl}/callback`,
-    auth_url: `${baseUrl}/oauth/authorize`,
-    token_url: `${baseUrl}/oauth/token`,
-    profile_url: `${baseUrl}/oauth/userinfo`,
+    auth_url: `${browserUrl}/oauth/authorize`,
+    token_url: `${internalUrl}/oauth/token`,
+    profile_url: `${internalUrl}/oauth/userinfo`,
     profile_email_path: "email",
     allow_login: true,
     access_type_offline: true,
@@ -227,26 +235,44 @@ async function createOauthConnect(baseUrl, token, authenticatorName, demoBaseUrl
 }
 
 async function assertDaptinReachable(baseUrl) {
-  const response = await fetch(`${baseUrl}/.well-known/openid-configuration`);
-  if (!response.ok) {
-    throw new Error(`Daptin OAuth discovery endpoint is not reachable at ${baseUrl}. Status: ${response.status}`);
+  let lastError = null;
+  for (let attempt = 1; attempt <= 60; attempt += 1) {
+    try {
+      const response = await fetch(`${baseUrl}/.well-known/openid-configuration`);
+      if (response.ok) {
+        return;
+      }
+      lastError = new Error(`Status: ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+    if (attempt === 1 || attempt % 10 === 0) {
+      console.log(`Waiting for Daptin OAuth discovery at ${baseUrl} (${attempt}/60).`);
+    }
+    await sleep(1000);
   }
+  throw new Error(`Daptin OAuth discovery endpoint is not reachable at ${baseUrl}: ${lastError && lastError.message}`);
 }
 
 const fileEnv = loadEnvFile(envPath);
 
 async function main() {
-  const daptinBaseUrl = env("DAPTIN_BASE_URL", "http://localhost:6336").replace(/\/$/, "");
-  const demoBaseUrl = env("DEMO_BASE_URL", "http://localhost:7777").replace(/\/$/, "");
+  const daptinBaseUrl = normalizeUrl(env("DAPTIN_BASE_URL", "http://localhost:6336"));
+  const daptinApiUrl = normalizeUrl(env("DAPTIN_API_URL", daptinBaseUrl));
+  const daptinBrowserUrl = normalizeUrl(env("DAPTIN_BROWSER_URL", daptinBaseUrl));
+  const daptinInternalUrl = normalizeUrl(env("DAPTIN_INTERNAL_URL", daptinApiUrl));
+  const demoBaseUrl = normalizeUrl(env("DEMO_BASE_URL", "http://localhost:7777"));
   const email = env("DEMO_ADMIN_EMAIL", "demo-admin@example.com");
   const password = env("DEMO_ADMIN_PASSWORD", "demo-admin-password");
   const authenticatorName = env("AUTHENTICATOR_NAME", `daptin-self-${randomSuffix()}`);
 
-  await assertDaptinReachable(daptinBaseUrl);
-  const adminToken = await ensureAdminToken(daptinBaseUrl, email, password);
-  const providerApp = await registerProviderApp(daptinBaseUrl, adminToken, authenticatorName, demoBaseUrl);
+  await assertDaptinReachable(daptinApiUrl);
+  const adminToken = await ensureAdminToken(daptinApiUrl, email, password);
+  const providerApp = await registerProviderApp(daptinApiUrl, adminToken, authenticatorName, demoBaseUrl);
   const oauthConnectId = await createOauthConnect(
-    daptinBaseUrl,
+    daptinApiUrl,
+    daptinBrowserUrl,
+    daptinInternalUrl,
     adminToken,
     authenticatorName,
     demoBaseUrl,
@@ -256,6 +282,9 @@ async function main() {
 
   const output = {
     DAPTIN_BASE_URL: daptinBaseUrl,
+    DAPTIN_API_URL: daptinApiUrl,
+    DAPTIN_BROWSER_URL: daptinBrowserUrl,
+    DAPTIN_INTERNAL_URL: daptinInternalUrl,
     DEMO_BASE_URL: demoBaseUrl,
     DAPTIN_ADMIN_TOKEN: adminToken,
     DEMO_ADMIN_EMAIL: email,
