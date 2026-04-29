@@ -1,6 +1,6 @@
 services:
   daptin:
-    image: ${DAPTIN_IMAGE:-daptin/daptin:v0.9.82}
+    image: ${DAPTIN_IMAGE:-daptin/daptin:v0.11.6}
     ports:
       - "6336:8080"
       - "6443:6443"

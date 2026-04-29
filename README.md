@@ -55,10 +55,10 @@ Open:
 
 Sign in to Daptin first, then use the demo app.
 
-By default, `compose.yaml` uses the current tagged Daptin image from the existing docs:
+By default, `compose.yaml` uses the Daptin image with OAuth provider support:
 
 ```sh
-daptin/daptin:v0.9.82
+daptin/daptin:v0.11.6
 ```
 
 If OAuth provider support is published under a newer tag, run:
